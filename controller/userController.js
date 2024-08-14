@@ -1,14 +1,24 @@
 const User = require('../models/User');
-const Role = require('../models/Role')
-const Permission = require('../models/Permission')
+const Role = require('../models/Role');
+const Permission = require('../models/Permission');
+const RolePermissionMapping = require('../models/RolePermissionMapping');
+const path = require('path');
+
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer=require('nodemailer');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const fs = require('fs');
+const csvParser = require('csv-parser');
+const xlsx = require('xlsx');
+const BulkUpload = require('../models/BulkUpload');  
+const mime = require('mime-types'); 
 dotenv.config();
 const jwtSceret = process.env.SECKRET_KEY;
 
+//Create Role
 const createRole = async (req, res) => {
     let role;
     role = new Role({
@@ -19,6 +29,7 @@ const createRole = async (req, res) => {
     res.status(201).json({ msg: 'User Registered Successfully' });
 
 }
+//Create Permissions
 
 const createPermissions = async (req, res) => {
     let permission;
@@ -29,6 +40,37 @@ const createPermissions = async (req, res) => {
     await permission.save();
     res.status(201).json({ msg: 'Permission Created Successfully' });
 
+}
+
+//Create Role-Permission mapping
+const CreatinfRolePermissionMapping = async(req,res)=>{
+    try{     
+        let {RoleId,Permission_ids}=req.body;
+
+        const roleExists = await Role.findById(RoleId);
+        if (!roleExists) {
+            return res.status(400).json({ error: 'Invalid RoleId' });
+        }
+        console.log(roleExists,'roleExists')
+        const permissionExist = await Permission.find({
+            _id:{$in:Permission_ids.map((elm)=>new mongoose.Types.ObjectId(elm))}
+        })
+        console.log(permissionExist,'permissionExist')
+        if (permissionExist.length !== Permission_ids.length) {
+            return res.status(400).json({ error: 'One or more Permission_ids are invalid' });
+        }
+
+        let mapping = new RolePermissionMapping({
+            RoleId: new mongoose.Types.ObjectId(RoleId),
+            Permission_ids:Permission_ids.map((elm)=> new mongoose.Types.ObjectId(elm))
+        })
+        await mapping.save();
+        res.status(200).json({msg:'Mapped Successfully'});
+    }
+    catch(err){
+        res.status(400).json({error:err.message});
+
+    }
 }
 
 const findUserByEmail =  async(Email)=>{
@@ -155,10 +197,148 @@ const Login = async(req,res) =>{
     }
 }
 
+const bulkUploadUsers = async(req,res)=>{
+    try {
+        const file = req.file;
+        const uploadedBy = req.body.UserId;  // Assuming you're using some auth middleware to attach the user
+        const filePath = file.path;
+
+        let totalRecords = 0;
+        let successRecords = 0;
+        let errorRecords = 0;
+        let errorDetails = [];
+   
+            // Read the file content
+            const extension = path.extname(file.originalname).toLowerCase();
+
+            const processRow = async (row, index) => {
+                totalRecords++;
+                try {
+
+                    const newUser = new User({
+                        Name: row.Name,
+                        Email: row.Email,
+                        Password: await getHashedPassword(row.Password.toString()),  // You'll want to hash this
+                        RoleId:new mongoose.Types.ObjectId(row.RoleId.toString())
+                    });
+                    console.log(newUser,'saved')
+                    await newUser.save();
+                    successRecords++;
+                } catch (err) {
+                    errorRecords++;
+                    errorDetails.push({
+                        Row: index + 1,  // To show 1-based indexing
+                        Error: err.message
+                    });
+                }
+            };
+    console.log(extension,'extension')
+    if (extension === '.csv') {
+        let index = 0;
+        const stream = fs.createReadStream(filePath).pipe(csvParser());
+        
+        for await (const row of stream) {
+            await processRow(row, index);
+            index++;
+        }
+        
+       const bulkResponse = await saveBulkUploadRecord(uploadedBy, file, totalRecords, successRecords, errorRecords, errorDetails, filePath);
+        res.status(200).json(bulkResponse);
+        
+    }       
+    else if (extension === '.xlsx') {
+                // Process Excel file
+                const workbook = xlsx.readFile(filePath);
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const rows = xlsx.utils.sheet_to_json(sheet);
+    
+                for (let index = 0; index < rows.length; index++) {
+                    await processRow(rows[index], index);
+                }
+    
+                 const bulkResponse=await saveBulkUploadRecord(uploadedBy,file,totalRecords,successRecords,errorRecords,errorDetails,filePath);
+                res.status(200).json(bulkResponse);
+            } else {
+                return res.status(400).json({ error: 'Unsupported file type' });
+            }
+     
+          
+        } catch (err) {
+            console.error('Bulk upload error:', err);
+            res.status(500).json({ error: 'An error occurred during bulk upload' });
+        }
+}
+
 async function getHashedPassword(password) {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     return hashedPassword;
 }
 
-module.exports = { createRole, registerUser, forgotPassword, resetPassword,Login ,createPermissions};
+const saveBulkUploadRecord = async (uploadedBy,file,totalRecords,successRecords,errorRecords,errorDetails,filePath) => {
+    console.log(file,'file')
+    const bulkUpload = new BulkUpload({
+        UploadedBy: uploadedBy,
+        FileName: file.filename,
+        TotalRecords: totalRecords,
+        SuccessRecords: successRecords,
+        ErrorRecords: errorRecords,
+        ErrorDetails: errorDetails,
+        file_url: filePath
+    });
+    await bulkUpload.save();
+    return bulkUpload;
+};
+
+
+// Download the uploaded file
+const downloadFile = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const upload = await BulkUpload.findById(id);
+
+        if (!upload) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+const filename = upload.FileName;
+console.log(__dirname,'__dirname')
+    const filePath = path.join(__dirname, '..' , 'uploads', filename);
+
+    // Read the file
+    fs.readFile(filePath, (err, data) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+
+        // Encode file data to Base64
+        const base64Data = data.toString('base64');
+
+        // Send the Base64 data to the client
+        res.json({
+            filename: filename,
+            base64: base64Data,
+            mimetype: mime.lookup(filename) || 'application/octet-stream'
+        });
+    });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+const listBulkUploads = async(req,res) => {
+    try{
+        const bulkUploadList = await BulkUpload.find().populate('UploadedBy', 'Name Email').sort({CreatedAt :-1});
+        res.status(200).json(bulkUploadList);
+    }
+    catch(err){
+        res.status(400).json({error:err.message});
+    }
+}
+
+
+
+
+
+module.exports = { createRole, registerUser, forgotPassword, resetPassword,Login ,createPermissions,CreatinfRolePermissionMapping,bulkUploadUsers,downloadFile,listBulkUploads};

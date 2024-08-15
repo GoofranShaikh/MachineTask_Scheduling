@@ -6,8 +6,8 @@ const AppointmentSchema = new Schema({
     AppointedDate: { type: Date, required: true },
     Attendees: [{
       DeveloperId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-      Status: { type: String, enum: ['Accepted', 'Declined'], required: true },
-      ResponseTime: { type: Date, required: true,default: Date.now }
+      Status: { type: String, enum: ['Accepted', 'Declined',null] ,default:null},
+      ResponseTime: { type: Date,default: null }
     }],
     CreatedAt: { type: Date, default: Date.now },
     UpdatedAt: { type: Date, default: Date.now },

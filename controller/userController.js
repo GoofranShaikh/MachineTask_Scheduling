@@ -188,8 +188,12 @@ const Login = async(req,res) =>{
         return res.status(200).json({error:'Incorrect Password'});
        }
 
-       let token = jwt.sign({Email:Email},jwtSceret,{expiresIn:'1h'})
-        res.status(200).json({token:token});
+       let token = jwt.sign({UserId:user?._id,RoleId:user?.RoleId},jwtSceret,{expiresIn:'1h'})
+        res.status(200).json({
+            Token:token,
+            RoleId:user?.RoleId,
+            UserId:user?._id
+        });
     }
     catch(err){
         console.error(err.message)

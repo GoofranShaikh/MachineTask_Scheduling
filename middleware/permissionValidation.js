@@ -4,7 +4,7 @@ const RolePermissionMapping = require('../models/RolePermissionMapping');
 const checkPermission = (requiredPermissions) => {
     return async (req, res, next) => {
         try {
-            const userRoleId = req.body.RoleId; // Assuming the user's role ID is stored in req.user
+            const userRoleId = req.body.RoleId; 
             if (!userRoleId) {
                 return res.status(403).json({ error: 'Access denied. No role assigned.' });
             }
@@ -12,7 +12,7 @@ const checkPermission = (requiredPermissions) => {
             // Fetch the permissions for the user's role
             const rolePermissions = await RolePermissionMapping.findOne({ RoleId: userRoleId }).populate('Permission_ids');
             console.log(rolePermissions,'rolePermissions')
-            const userPermissions = rolePermissions.Permission_ids.map(permission => permission.PermissionName); // Assuming permission model has a 'name' field
+            const userPermissions = rolePermissions.Permission_ids.map(permission => permission.PermissionName); 
 
             // Check if the user has all the required permissions
             const hasPermission = requiredPermissions.every(permission => userPermissions.includes(permission));
@@ -23,7 +23,7 @@ const checkPermission = (requiredPermissions) => {
 
             next(); // User has permission, proceed to the next middleware or route handler
         } catch (err) {
-            return res.status(500).json({ error: 'Server error. Please try again later.' });
+            return res.status(500).json({ error: err.message});
         }
     };
 };

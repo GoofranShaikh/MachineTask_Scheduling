@@ -10,7 +10,7 @@ const ReportSchema = new Schema({
     MeetingScheduled: { type: Number, required: true },
     MeetingAttended: { type: Number, required: true },
     CreatedAt: { type: Date, default: Date.now },
-    export_url: { type: String, required: true }
+    // export_url: { type: String, required: true }
   });
   
   const Report = mongoose.model('Report', ReportSchema);

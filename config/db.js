@@ -1,12 +1,4 @@
 const mongoose = require('mongoose');
-// Import models
-// const User = require('./../models/User');
-// const Role = require('./../modelss/Role');
-// const Permission = require('./../models/Permission');
-// const RolePermissionMapping = require('./../models/RolePermissionMapping');
-// const Appointment = require('./../models/Appointment');
-// const BulkUpload = require('./../models/BulkUpload');
-// const Report = require('./../models/Report');
 const dotenv = require('dotenv');
 dotenv.config();
 

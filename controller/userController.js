@@ -6,15 +6,16 @@ const path = require('path');
 
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const nodemailer=require('nodemailer');
+const nodemailer = require('nodemailer');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const csvParser = require('csv-parser');
 const xlsx = require('xlsx');
-const BulkUpload = require('../models/BulkUpload');  
-const mime = require('mime-types'); 
+const BulkUpload = require('../models/BulkUpload');
+const mime = require('mime-types');
+const redisClient = require('../config/redisClient');
 dotenv.config();
 const jwtSceret = process.env.SECKRET_KEY;
 
@@ -32,48 +33,69 @@ const createRole = async (req, res) => {
 //Create Permissions
 
 const createPermissions = async (req, res) => {
-    let permission;
-    permission = new Permission({
-        PermissionName: req.body.PermissionName,
-        Description: req.body.Description
-    })
-    await permission.save();
-    res.status(201).json({ msg: 'Permission Created Successfully' });
+    try{
+        let permission;
+        permission = new Permission({
+            PermissionName: req.body.PermissionName,
+            Description: req.body.Description
+        })
+        await permission.save();
+        let PermissionId = permission?._id.toString()
+        console.log(PermissionId,'permission?._id')
+        let StrigifiedPermission =JSON.stringify(permission)
+        await redisClient.set(`permission:${PermissionId}`,StrigifiedPermission)
+        res.status(201).json(permission);
+    }
+    catch(err){
+        res.status(400).json({error:err.message});
+    }
 
 }
 
 //Create Role-Permission mapping
-const CreatinfRolePermissionMapping = async(req,res)=>{
-    try{     
-        let {RoleId,Permission_ids}=req.body;
+const CreatingRolePermissionMapping = async (req, res) => {
+    try {
+        let { RoleId, Permission_ids } = req.body;
 
         const roleExists = await Role.findById(RoleId);
         if (!roleExists) {
             return res.status(400).json({ error: 'Invalid RoleId' });
         }
-        console.log(roleExists,'roleExists')
+        console.log(roleExists, 'roleExists')
         const permissionExist = await Permission.find({
-            _id:{$in:Permission_ids.map((elm)=>new mongoose.Types.ObjectId(elm))}
+            _id: { $in: Permission_ids.map((elm) => new mongoose.Types.ObjectId(elm)) }
         })
-        console.log(permissionExist,'permissionExist')
+        console.log(permissionExist, 'permissionExist')
         if (permissionExist.length !== Permission_ids.length) {
             return res.status(400).json({ error: 'One or more Permission_ids are invalid' });
         }
 
-        let mapping = new RolePermissionMapping({
-            RoleId: new mongoose.Types.ObjectId(RoleId),
-            Permission_ids:Permission_ids.map((elm)=> new mongoose.Types.ObjectId(elm))
-        })
-        await mapping.save();
-        res.status(200).json({msg:'Mapped Successfully'});
+        const getMappingByRole = await RolePermissionMapping.findOne({RoleId:RoleId})
+        let mapping ='';
+        console.log(getMappingByRole,'getMappingByRole-1')
+        if(getMappingByRole){
+          mapping = getMappingByRole['Permission_ids'] = [...getMappingByRole['Permission_ids'],...Permission_ids];
+          await getMappingByRole.save();
+          console.log(getMappingByRole.populate('Permission_ids'),'Permission_ids');
+
+        }
+        else{
+         mapping = new RolePermissionMapping({
+                RoleId: new mongoose.Types.ObjectId(RoleId),
+                Permission_ids: Permission_ids.map((elm) => new mongoose.Types.ObjectId(elm))
+            })
+            await mapping.save();
+
+        }
+        res.status(200).json({ msg: 'Mapped Successfully' });
     }
-    catch(err){
-        res.status(400).json({error:err.message});
+    catch (err) {
+        res.status(400).json({ error: err.message });
 
     }
 }
 
-const findUserByEmail =  async(Email)=>{
+const findUserByEmail = async (Email) => {
     let user = await User.findOne({ Email });
     return user;
 }
@@ -143,26 +165,26 @@ const forgotPassword = async (req, res) => {
     }
     catch (err) {
         console.error(err.message);
-        res.status(400).json({error:err.message});
+        res.status(400).json({ error: err.message });
 
     }
 }
 
-const resetPassword = async(req,res)=>{
-    try{
+const resetPassword = async (req, res) => {
+    try {
         const resetToken = req.params;
-        const {Password} = req.body;
+        const { Password } = req.body;
         console.log(resetToken)
 
         const user = await User.findOne({
-            resetPasswordToken:resetToken.token,
-            resetPasswordExpires:{$gt:Date.now()}
+            resetPasswordToken: resetToken.token,
+            resetPasswordExpires: { $gt: Date.now() }
         })
-        console.log(user.resetPasswordExpires,'resetPasswordExpires')
-        console.log(Date.now(),"Date.now()")
+        console.log(user.resetPasswordExpires, 'resetPasswordExpires')
+        console.log(Date.now(), "Date.now()")
 
-        if(!user){
-            return res.status(400).json({error:'Token may be invalid or may have expired'});
+        if (!user) {
+            return res.status(400).json({ error: 'Token may be invalid or may have expired' });
         }
 
         user.Password = await getHashedPassword(Password);
@@ -171,37 +193,37 @@ const resetPassword = async(req,res)=>{
         await user.save();
         res.status(200).json('Password reseted successfully');
     }
-    catch(err){
-        res.status(400).json({error:err.message});
+    catch (err) {
+        res.status(400).json({ error: err.message });
     }
 }
 
-const Login = async(req,res) =>{
-    try{
-        const{Email,Password} = req.body;
+const Login = async (req, res) => {
+    try {
+        const { Email, Password } = req.body;
         let user = await findUserByEmail(Email);
-        if(!user){
-            return res.status(200).json({error:'User Not Registered'});
+        if (!user) {
+            return res.status(200).json({ error: 'User Not Registered' });
         }
-       let passwordMatch = await bcrypt.compare(Password,user.Password);
-       if(!passwordMatch){
-        return res.status(200).json({error:'Incorrect Password'});
-       }
+        let passwordMatch = await bcrypt.compare(Password, user.Password);
+        if (!passwordMatch) {
+            return res.status(200).json({ error: 'Incorrect Password' });
+        }
 
-       let token = jwt.sign({UserId:user?._id,RoleId:user?.RoleId},jwtSceret,{expiresIn:'1h'})
+        let token = jwt.sign({ UserId: user?._id, RoleId: user?.RoleId }, jwtSceret, { expiresIn: '1h' })
         res.status(200).json({
-            Token:token,
-            RoleId:user?.RoleId,
-            UserId:user?._id
+            Token: token,
+            RoleId: user?.RoleId,
+            UserId: user?._id
         });
     }
-    catch(err){
+    catch (err) {
         console.error(err.message)
-        res.status(400).json({err:err.message});
+        res.status(400).json({ err: err.message });
     }
 }
 
-const bulkUploadUsers = async(req,res)=>{
+const bulkUploadUsers = async (req, res) => {
     try {
         const file = req.file;
         const uploadedBy = req.body.UserId;  // Assuming you're using some auth middleware to attach the user
@@ -211,67 +233,66 @@ const bulkUploadUsers = async(req,res)=>{
         let successRecords = 0;
         let errorRecords = 0;
         let errorDetails = [];
-   
-            // Read the file content
-            const extension = path.extname(file.originalname).toLowerCase();
 
-            const processRow = async (row, index) => {
-                totalRecords++;
-                try {
+        // Read the file content
+        const extension = path.extname(file.originalname).toLowerCase();
 
-                    const newUser = new User({
-                        Name: row.Name,
-                        Email: row.Email,
-                        Password: await getHashedPassword(row.Password.toString()),  // You'll want to hash this
-                        RoleId:new mongoose.Types.ObjectId(row.RoleId.toString())
-                    });
-                    console.log(newUser,'saved')
-                    await newUser.save();
-                    successRecords++;
-                } catch (err) {
-                    errorRecords++;
-                    errorDetails.push({
-                        Row: index + 1,  // To show 1-based indexing
-                        Error: err.message
-                    });
-                }
-            };
-    console.log(extension,'extension')
-    if (extension === '.csv') {
-        let index = 0;
-        const stream = fs.createReadStream(filePath).pipe(csvParser());
-        
-        for await (const row of stream) {
-            await processRow(row, index);
-            index++;
-        }
-        
-       const bulkResponse = await saveBulkUploadRecord(uploadedBy, file, totalRecords, successRecords, errorRecords, errorDetails, filePath);
-        res.status(200).json(bulkResponse);
-        
-    }       
-    else if (extension === '.xlsx') {
-                // Process Excel file
-                const workbook = xlsx.readFile(filePath);
-                const sheetName = workbook.SheetNames[0];
-                const sheet = workbook.Sheets[sheetName];
-                const rows = xlsx.utils.sheet_to_json(sheet);
-    
-                for (let index = 0; index < rows.length; index++) {
-                    await processRow(rows[index], index);
-                }
-    
-                 const bulkResponse=await saveBulkUploadRecord(uploadedBy,file,totalRecords,successRecords,errorRecords,errorDetails,filePath);
-                res.status(200).json(bulkResponse);
-            } else {
-                return res.status(400).json({ error: 'Unsupported file type' });
+        const processRow = async (row, index) => {
+            totalRecords++;
+            try {
+
+                const newUser = new User({
+                    Name: row.Name,
+                    Email: row.Email,
+                    Password: await getHashedPassword(row.Password.toString()),
+                    RoleId: new mongoose.Types.ObjectId(row.RoleId.toString())
+                });
+                console.log(newUser, 'saved')
+                await newUser.save();
+                successRecords++;
+            } catch (err) {
+                errorRecords++;
+                errorDetails.push({
+                    Row: index + 1,  // To show 1-based indexing
+                    Error: err.message
+                });
             }
-     
-          
-        } catch (err) {
-            console.error('Bulk upload error:', err);
-            res.status(500).json({ error: 'An error occurred during bulk upload' });
+        };
+        if (extension === '.csv') {
+            let index = 0;
+            const stream = fs.createReadStream(filePath).pipe(csvParser());
+
+            for await (const row of stream) {
+                await processRow(row, index);
+                index++;
+            }
+
+            const bulkResponse = await saveBulkUploadRecord(uploadedBy, file, totalRecords, successRecords, errorRecords, errorDetails, filePath);
+            res.status(200).json(bulkResponse);
+
         }
+        else if (extension === '.xlsx') {
+            // Process Excel file
+            const workbook = xlsx.readFile(filePath);
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const rows = xlsx.utils.sheet_to_json(sheet);
+
+            for (let index = 0; index < rows.length; index++) {
+                await processRow(rows[index], index);
+            }
+
+            const bulkResponse = await saveBulkUploadRecord(uploadedBy, file, totalRecords, successRecords, errorRecords, errorDetails, filePath);
+            res.status(200).json(bulkResponse);
+        } else {
+            return res.status(400).json({ error: 'Unsupported file type' });
+        }
+
+
+    } catch (err) {
+        console.error('Bulk upload error:', err);
+        res.status(500).json({ error: 'An error occurred during bulk upload' });
+    }
 }
 
 async function getHashedPassword(password) {
@@ -280,8 +301,8 @@ async function getHashedPassword(password) {
     return hashedPassword;
 }
 
-const saveBulkUploadRecord = async (uploadedBy,file,totalRecords,successRecords,errorRecords,errorDetails,filePath) => {
-    console.log(file,'file')
+const saveBulkUploadRecord = async (uploadedBy, file, totalRecords, successRecords, errorRecords, errorDetails, filePath) => {
+    console.log(file, 'file')
     const bulkUpload = new BulkUpload({
         UploadedBy: uploadedBy,
         FileName: file.filename,
@@ -305,39 +326,38 @@ const downloadFile = async (req, res) => {
         if (!upload) {
             return res.status(404).json({ error: 'File not found' });
         }
-const filename = upload.FileName;
-console.log(__dirname,'__dirname')
-    const filePath = path.join(__dirname, '..' , 'uploads', filename);
+        const filename = upload.FileName;
+        const filePath = path.join(__dirname, '..', 'uploads', filename);
 
-    // Read the file
-    fs.readFile(filePath, (err, data) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
+        // Read the file
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
 
-        // Encode file data to Base64
-        const base64Data = data.toString('base64');
+            // Encode file data to Base64
+            const base64Data = data.toString('base64');
 
-        // Send the Base64 data to the client
-        res.json({
-            filename: filename,
-            base64: base64Data,
-            mimetype: mime.lookup(filename) || 'application/octet-stream'
+            // Send the Base64 data to the client
+            res.json({
+                filename: filename,
+                base64: base64Data,
+                mimetype: mime.lookup(filename) || 'application/octet-stream'
+            });
         });
-    });
 
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
 
-const listBulkUploads = async(req,res) => {
-    try{
-        const bulkUploadList = await BulkUpload.find().populate('UploadedBy', 'Name Email').sort({CreatedAt :-1});
+const listBulkUploads = async (req, res) => {
+    try {
+        const bulkUploadList = await BulkUpload.find().populate('UploadedBy', 'Name Email').sort({ CreatedAt: -1 });
         res.status(200).json(bulkUploadList);
     }
-    catch(err){
-        res.status(400).json({error:err.message});
+    catch (err) {
+        res.status(400).json({ error: err.message });
     }
 }
 
@@ -345,4 +365,4 @@ const listBulkUploads = async(req,res) => {
 
 
 
-module.exports = { createRole, registerUser, forgotPassword, resetPassword,Login ,createPermissions,CreatinfRolePermissionMapping,bulkUploadUsers,downloadFile,listBulkUploads};
+module.exports = { createRole, registerUser, forgotPassword, resetPassword, Login, createPermissions, CreatingRolePermissionMapping, bulkUploadUsers, downloadFile, listBulkUploads };

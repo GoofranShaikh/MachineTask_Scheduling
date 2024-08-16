@@ -1,6 +1,5 @@
 const RolePermissionMapping = require('../models/RolePermissionMapping'); 
 
-
 const checkPermission = (requiredPermissions) => {
     return async (req, res, next) => {
         try {

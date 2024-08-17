@@ -27,7 +27,7 @@ const createRole = async (req, res) => {
         Description: req.body.Description
     })
     await role.save();
-    res.status(201).json({ msg: 'User Registered Successfully' });
+    res.status(201).json({ msg: 'Role Created Successfully' });
 
 }
 //Create Permissions
@@ -100,12 +100,20 @@ const findUserByEmail = async (Email) => {
     return user;
 }
 
+const isRoleExist = async(RoleId) => {
+    let role = await Role.findById(RoleId);
+    return role;
+}
+
 const registerUser = async (req, res) => {
     try {
         const { Name, Email, Password, RoleId } = req.body;
-        let user = findUserByEmail(Email);
+        let user = await findUserByEmail(Email);
         if (user) {
             return res.status(400).json({ msg: 'User Already Exist' });
+        }
+        if(!await isRoleExist(RoleId)){
+            return res.status(400).json({msg:'Role Does Not Exist'})
         }
 
         user = new User({
@@ -173,8 +181,10 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
     try {
         const resetToken = req.params;
+        if(resetToken == undefined || resetToken == null){
+            return res.status(400).json({error:'Reset token is required'})
+        }
         const { Password } = req.body;
-        console.log(resetToken)
 
         const user = await User.findOne({
             resetPasswordToken: resetToken.token,

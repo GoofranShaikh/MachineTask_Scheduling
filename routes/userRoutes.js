@@ -243,8 +243,8 @@ router.post('/reset/:token', validationMiddleware(resetPasswordSchema),resetPass
  *           format: password
  *           description: The password of the user
  *       example:
- *         Email: "user@example.com"
- *         Password: "userPassword123"
+ *         Email: "joe@gmail.com"
+ *         Password: "12345678"
  */
 
 /**
@@ -527,7 +527,7 @@ router.post('/permissionMapping',auth.authenticateJWT,validationMiddleware(roleP
  *                 error: 'An error occurred during bulk upload'
  */
 
-router.post('/upload-file',auth.authenticateJWT,auth.authenticateJWT,upload.single('file'), bulkUploadUsers);
+router.post('/upload-file',auth.authenticateJWT,checkPermission(['view uploaded list']),upload.single('file'), bulkUploadUsers);
 /**
  * @swagger
  * components:
@@ -701,7 +701,7 @@ router.get('/download/:id',auth.authenticateJWT,downloadFile);
  *                 error: "An error occurred while processing the request"
  */
 
-router.get('/uploadedList',auth.authenticateJWT,listBulkUploads);
+router.get('/uploadedList',auth.authenticateJWT,checkPermission(['view uploaded list']),listBulkUploads);
 
 
 

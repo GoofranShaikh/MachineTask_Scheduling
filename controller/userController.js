@@ -363,7 +363,8 @@ const downloadFile = async (req, res) => {
 
 const listBulkUploads = async (req, res) => {
     try {
-        const bulkUploadList = await BulkUpload.find().populate('UploadedBy', 'Name Email').sort({ CreatedAt: -1 });
+        const UserId = req.user.UserId;
+        const bulkUploadList = await BulkUpload.find({UploadedBy:UserId}).populate('UploadedBy', 'Name Email').sort({ CreatedAt: -1 });
         res.status(200).json(bulkUploadList);
     }
     catch (err) {

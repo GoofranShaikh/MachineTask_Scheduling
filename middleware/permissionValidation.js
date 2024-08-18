@@ -4,7 +4,7 @@ const checkPermission = (requiredPermissions) => {
     return async (req, res, next) => {
         try {
             let rolePermissions;
-            const userRoleId = req.body.RoleId; 
+            const userRoleId = req.user.RoleId; 
             if (!userRoleId) {
                 return res.status(403).json({ error: 'Access denied. No role assigned.' });
             }

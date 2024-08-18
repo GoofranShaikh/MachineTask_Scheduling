@@ -154,7 +154,7 @@ const forgotPassword = async (req, res) => {
 
         const mailOptions = {
             to: user.Email,
-            from: 'passwordreset@yourapp.com',
+            from:  process.env.EMAIL_USER,
             subject: 'Password Reset',
             text: `You are receiving this because you  have requested the reset of the password for your account.\n
     Please click on the following link, or paste this into your browser to complete the process:\n
@@ -236,7 +236,7 @@ const Login = async (req, res) => {
 const bulkUploadUsers = async (req, res) => {
     try {
         const file = req.file;
-        const uploadedBy = req.body.UserId;  // Assuming you're using some auth middleware to attach the user
+        const uploadedBy = req.user.UserId;  
         const filePath = file.path;
 
         let totalRecords = 0;

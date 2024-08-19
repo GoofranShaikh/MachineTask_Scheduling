@@ -1,0 +1,98 @@
+
+
+1. Users Collection
+
+
+json
+
+{
+  "_id": ObjectId,
+  "Name": String,
+  "RoleId": ObjectId(),  // Reference to the user's role in the Roles collection
+  "BlockedUser": [ObjectId, ObjectId],
+  "CreatedAt": DateTime,
+  "updatedAt": DateTime,
+  "resetPasswordToken": String,
+  "resetPasswordExpires": DateTime
+}
+
+2.Roles
+{
+"_id":ObjectId(),
+"RoleName":String,
+"Description":String
+}
+
+3.Permission
+{
+"_id":ObjectId(),
+"PermissionName":String,
+"Description":String
+}
+
+4.Role_permission_mapping
+{
+"_id":ObjectId(),
+"RoleId":ObjectId(), //Reference RoleId in Roles Collection
+"Permission_ids":[ObjectId(),ObjectId()] //Reference Permission Ids in Permission Collection
+}
+
+
+5. Appointments Collection
+This collection will store information about appointments created by managers and the responses from developers.
+
+
+{
+  "_id": ObjectId(),            // Unique identifier for the appointment
+  "ManagerId": ObjectId(),     // Reference to the Managers user ID
+  "AppointedDate": DateTime,            // Date and time of the appointment
+  "Attendees": [                     // Array of developer responses
+    {
+      "DeveloperId": ObjectId(),     // Developers user ID
+      "Status": "Accepted",                // Status of the appointment ("Accepted" or "Declined")
+      "ResponseTime": DateTime      // Timestamp of the developer's response
+    }
+  ],
+  "CraeatedAt": DateTime,      // Timestamp of appointment creation
+  "UpdatedAt": DateTime,      // Timestamp of last appointment update
+  "Status": "Scheduled"              // Status of the appointment (Scheduled, Cancelled)
+}
+6. BulkUploads Collection
+
+{
+  "_id": ObjectId(),             // Unique identifier for the bulk upload
+  "UploadedBy": ObjectId(),         // Reference to the user who performed the bulk upload
+  "FileName": "",    // Name of the uploaded file
+  "CreatedAt": DateTime,      // Timestamp of the upload
+  "TotalRecords": 100,               // Total number of records in the file
+  "SuccessRecords": 90,           // Number of records successfully uploaded
+  "ErrorRecords": 10,                // Number of records that encountered errors
+  "ErrorDetails": [                  // List of errors encountered during the upload
+    {
+      "Row": 5,
+      "Error": "Invalid email format"
+    },
+    {
+      "Row": 20,
+      "Error": "Missing required field: name"
+    }
+  ],
+  "file_url":String// URL to download the uploaded file
+}
+
+7. Reports Collection
+In this collection data will be inserted when use generate the meeting report.
+
+
+{
+  "_id": ObjectId(),                 // Unique identifier for the report
+  "CreatedBy": ObjectId(),             // Reference to the user who generated the report
+  "DateRange": {                         // Date range for the report
+    "StartDate": DateTime,
+    "Enddate": DateTime
+  },
+  "MeetingScheduled": 20,         // Total number of meetings scheduled in the period
+  "MeetingAttended": 18,          // Total number of meetings attended in the period
+  "CreatedAt": DateTime,    // Timestamp of report creation
+  "export_url": "" // URL to download the report
+}

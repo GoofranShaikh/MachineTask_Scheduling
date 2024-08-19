@@ -15,7 +15,6 @@ const csvParser = require('csv-parser');
 const xlsx = require('xlsx');
 const BulkUpload = require('../models/BulkUpload');
 const mime = require('mime-types');
-const redisClient = require('../config/redisClient');
 dotenv.config();
 const jwtSceret = process.env.SECKRET_KEY;
 
@@ -40,10 +39,7 @@ const createPermissions = async (req, res) => {
             Description: req.body.Description
         })
         await permission.save();
-        let PermissionId = permission?._id.toString()
-        console.log(PermissionId,'permission?._id')
-        let StrigifiedPermission =JSON.stringify(permission)
-        await redisClient.set(`permission:${PermissionId}`,StrigifiedPermission)
+        let PermissionId = permission?._id.toString();
         res.status(201).json(permission);
     }
     catch(err){

@@ -35,4 +35,26 @@ const rolePremissionSchema = Joi.object({
   });
   
 
-module.exports ={registrationSchema,roleSchema,forgotPasswordSchema,resetPasswordSchema,loginSchema,permissionSchema,rolePremissionSchema};
+const createAppointmentSchema = Joi.object({
+    ManagerId: Joi.string().required(),
+    AppointedDate:Joi.string().required(),
+    Status: Joi.string().required()
+  });
+
+const appointmentActionSchema = Joi.object({
+    appointmentId: Joi.string().required(),
+    attendeeId:Joi.string().required(),
+    status: Joi.string().required()
+  });
+
+const appointmentStatusSchema = Joi.object({
+    AppointmentId: Joi.string().required(),
+    UserId:Joi.string().required()
+})
+
+const cancelAppointmentSchema = Joi.object({
+    appointmentId: Joi.string().required(),
+})
+  
+
+module.exports ={registrationSchema,roleSchema,forgotPasswordSchema,resetPasswordSchema,loginSchema,permissionSchema,rolePremissionSchema,createAppointmentSchema,appointmentActionSchema,appointmentStatusSchema,cancelAppointmentSchema};

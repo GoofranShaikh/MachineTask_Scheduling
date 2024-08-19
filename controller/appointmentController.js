@@ -139,7 +139,7 @@ const listAppoinments = async (req, res) => {
 
 const blockUser = async (req, res) => {
   try {
-    const { userid } = req.params;
+    const { userid } = req.params; //user to be blocked
     const { LoggedInUserId } = req.body;
     // Find the current user
     const user = await User.findById(LoggedInUserId);
